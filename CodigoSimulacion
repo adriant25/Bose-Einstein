@@ -1,0 +1,118 @@
+clear
+clc
+k_b = 8.617333262e-05; % [eV/K] Constante de Boltzmann
+Ef=0:0.000000000001:0.0000001;%Vector de energías para fotones
+E=0:0.0012926/300:0.0012926;%Vector de energías para átomos
+T=[3:50];%Temperaturas a simular [K]
+Tc=2;%Temperatura donde el potencial es positivo [K]
+N=20;%Número de partículas
+
+n = numel(T);  % Obtener el número de elementos en T
+T_strings = cell(1, n);  % Crear una celda para almacenar las cadenas convertidas
+% Convertir los elementos en cadenas y agregar los prefijos/sufijos
+for i = 1:n
+    T_strings{i} = ['T=' num2str(T(i)) 'K'];
+end
+
+
+%Sin constante de normalización (e^(alpha)=1) (Fotones)
+for i=1:length(T)
+    nif(:,i)=1./(exp(Ef/(k_b*T(i)))-1);%Distribución de Bose-Einstein
+end
+
+figure()
+plot(Ef,nif)
+grid on
+title('Estadistica de Bose-Einstein (Fotones)',Interpreter='latex')
+ylabel('Numero de particulas $\langle n_{i} \rangle$',Interpreter='latex')
+xlabel('Energia $[eV]$',Interpreter='latex')
+legend(T_strings,Interpreter='latex')
+xlim([0 14e-10])
+ylim([0 12e+7])
+
+%Con constante de normalización (Átomos)
+for i=1:length(T)
+    alpha=findAlpha(N,E,T(i),0.001);%Encontrar la constante de normalización
+    ni(:,i)=1./(exp(alpha).*exp(E/(k_b*T(i)))-1);%Distribución de Bose-Einstein
+end
+figure()
+plot(E,ni)
+grid on
+title('Estadistica de Bose-Einstein (Atomos)',Interpreter='latex')
+ylabel('Numero de particulas $\langle n_{i} \rangle$',Interpreter='latex')
+xlabel('Energia [$eV$]',Interpreter='latex')
+legend(T_strings,Interpreter='latex')
+xlim([0 E(end)]) 
+
+alpha=findAlpha(N,E,Tc,0.001);%Encontrar la constante de normalización
+nic=1./(exp(alpha).*exp(E/(k_b*Tc))-1);%Distribución de Bose-Einstein
+
+figure()
+hold on
+grid on
+plot(E,nic)
+line([-alpha*Tc*k_b -alpha*Tc*k_b], ylim, 'Color', 'r', 'LineStyle', '--', 'LineWidth', 1.5);
+hold off
+title('Estadistica de Bose-Einstein (Atomos)',Interpreter='latex')
+ylabel('Numero de particulas $\langle n_{i} \rangle$',Interpreter='latex')
+xlabel('Energia [$eV$]',Interpreter='latex')
+legend({['T=' num2str(Tc) 'K'],'$\mu$'},Interpreter='latex')
+xlim([0 E(end)])
+
+
+Tgraf=12;%Se selecciona la temperatura a graficar, el número de columna
+p=10;
+[x,y,z]=cylinder(ni(:,1));%Se hallan los valores de x y y para la rotación
+[n,m]=size(z);
+Z=repmat(flip(ni(:,Tgraf)),1,21);%Se halla los valores del eje z
+s=surf(x,y,Z);
+colormap('jet');  % Asignar un mapa de colores (en este caso, 'jet')
+colorbar;         % Mostrar la barra de colores
+clim([0 max(max(ni))+0.01])
+title(strcat('Grafica 3D del condensado de Bose-Einstein [T=',num2str(T(Tgraf)),'K]'),Interpreter='latex');
+ylabel('Energia en y [$eV$]',Interpreter='latex')
+xlabel('Energia en x [$eV$]',Interpreter='latex')
+zlabel('Numero de particulas $\langle n_{i} \rangle$',Interpreter='latex')
+zlim([0 max(max(ni))+0.01])
+s.EdgeColor = 'none';
+
+fig = figure;
+for idx = 1:length(T)
+    Z=repmat(flip(ni(:,idx)),1,21);%Se halla los valores del eje z
+    s=surf(x,y,Z);
+    colormap('jet');  % Asignar un mapa de colores (en este caso, 'jet')
+    colorbar;         % Mostrar la barra de colores
+    clim([0 max(max(ni))+0.01])
+    title(strcat('Grafica 3D del condensado de Bose-Einstein [T=',num2str(T(idx)),'K]'),Interpreter='latex');
+    ylabel('Energia en y [$eV$]',Interpreter='latex')
+    xlabel('Energia en x [$eV$]',Interpreter='latex')
+    zlabel('Numero de particulas $\langle n_{i} \rangle$',Interpreter='latex')
+    zlim([0 max(max(ni))+0.01])
+    s.EdgeColor = 'none';
+    drawnow
+    frame = getframe(fig);
+    im{idx} = frame2im(frame);
+end
+
+filename = "testAnimated.gif"; % Specify the output file name
+for idx = 1:length(T)
+    [A,map] = rgb2ind(im{idx},256);
+    if idx == 1
+        imwrite(A,map,filename,"gif","LoopCount",Inf,"DelayTime",0.5);
+    else
+        imwrite(A,map,filename,"gif","WriteMode","append","DelayTime",0.5);
+    end
+end
+
+function alpha = findAlpha(N, E, T, epsilon)
+% Función que encuentra la constante de normalización alpha
+% Inicialización de variables
+alpha = 2;%Vector inicial
+k=8.617333262e-05;%Constante de Boltzman [eV/K]
+f = @(alpha) sum(1 ./ (exp(alpha) .* exp(E/(k*T)) - 1)) - N;%Función objetivo
+fprime = @(alpha) sum(-(exp(alpha+E/(k*T)))./(exp(alpha+E/(k*T))-1).^(2));%Derivada de la función objetivo
+% Método de Newton-Raphson
+while abs(f(alpha)) > epsilon %Condición de error
+    alpha = alpha - f(alpha) / fprime(alpha);%Actualización de la variable
+end
+end
